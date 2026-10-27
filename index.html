@@ -1,0 +1,108 @@
+<!doctype html>
+<html lang="ko">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <meta name="color-scheme" content="light dark">
+  <title>PDF 페이지 정리</title>
+  <link rel="icon" href="data:,">
+  <link rel="stylesheet" href="style.css">
+</head>
+<body>
+  <!-- data-icon 자리에는 app.js가 인라인 SVG 아이콘을 넣는다 -->
+  <header class="topbar">
+    <h1 class="title"><span class="title-mark" data-icon="file"></span><span class="title-text">PDF 페이지 정리</span></h1>
+    <div class="actions">
+      <button type="button" id="btn-undo" class="icon-btn" title="실행 취소 (Ctrl+Z)" aria-label="실행 취소 (Ctrl+Z)" disabled><span data-icon="undo"></span></button>
+      <button type="button" id="btn-redo" class="icon-btn" title="다시 실행 (Ctrl+Y)" aria-label="다시 실행 (Ctrl+Y)" disabled><span data-icon="redo"></span></button>
+      <span class="actions-sep" aria-hidden="true"></span>
+      <button type="button" id="btn-reset" class="ghost-danger" title="전체 초기화" aria-label="전체 초기화"><span data-icon="reset"></span><span class="btn-label">전체 초기화</span></button>
+      <button type="button" id="btn-save" class="primary" title="PDF로 저장" aria-label="PDF로 저장" disabled><span data-icon="download"></span><span class="btn-label" id="btn-save-label">PDF로 저장</span></button>
+    </div>
+  </header>
+
+  <div class="banner" id="storage-banner" role="alert" hidden><span data-icon="alert"></span><span id="storage-banner-text"></span></div>
+
+  <div class="layout">
+    <!-- 메인 작업 영역 -->
+    <main class="panel workspace" id="workspace">
+      <div class="panel-head">
+        <h2>메인 작업</h2>
+        <span class="panel-info" id="main-info"></span>
+        <div class="selection-tools" id="selection-tools" role="group" aria-label="선택한 페이지 편집" hidden>
+          <button type="button" id="btn-sel-prev" class="small" title="선택한 페이지를 한 칸 앞으로" aria-label="선택한 페이지를 한 칸 앞으로"><span data-icon="chevron-left"></span>앞으로</button>
+          <button type="button" id="btn-sel-next" class="small" title="선택한 페이지를 한 칸 뒤로" aria-label="선택한 페이지를 한 칸 뒤로">뒤로<span data-icon="chevron-right"></span></button>
+          <button type="button" id="btn-sel-rotate" class="small" title="선택한 페이지를 시계 방향으로 90° 회전" aria-label="선택한 페이지를 시계 방향으로 90° 회전"><span data-icon="rotate-cw"></span>회전</button>
+          <button type="button" id="btn-delete-selected" class="small danger" aria-label="선택한 페이지 삭제"><span data-icon="trash"></span><span id="delete-selected-label">선택 삭제</span></button>
+        </div>
+        <button type="button" id="btn-main" aria-label="메인 PDF 업로드"><span data-icon="upload"></span><span id="btn-main-label">메인 PDF 업로드</span></button>
+        <input type="file" id="main-input" accept="application/pdf,.pdf" hidden>
+      </div>
+      <p class="hint">카드를 클릭해 선택(Ctrl·Shift+클릭으로 여러 개)하면 위쪽 버튼으로 한꺼번에 이동·회전·삭제할 수 있고, 선택한 카드를 끌면 함께 옮겨집니다. 번호를 클릭하면 위치를 직접 입력합니다.</p>
+      <div class="loading" id="loading"><span class="spinner" aria-hidden="true"></span>작업을 불러오는 중…</div>
+      <div class="empty" id="empty" role="button" tabindex="0" aria-label="메인 PDF 업로드" hidden>
+        <span class="empty-icon" data-icon="file-plus"></span>
+        <p class="empty-title">메인 PDF를 여기에 끌어다 놓으세요</p>
+        <p class="empty-sub">또는 클릭해서 파일 선택</p>
+      </div>
+      <ol class="grid" id="grid"></ol>
+    </main>
+
+    <!-- 첨부 PDF 영역 -->
+    <aside class="panel attach" id="attach">
+      <div class="panel-head">
+        <h2>첨부 PDF</h2>
+        <button type="button" id="btn-attach" class="small" aria-label="첨부 PDF 추가"><span data-icon="plus"></span>첨부 추가</button>
+        <input type="file" id="attach-input" accept="application/pdf,.pdf" multiple hidden>
+      </div>
+      <p class="hint">페이지를 클릭해 선택한 뒤 [메인에 추가]를 누르거나, 메인 작업 영역의 원하는 위치로 끌어다 놓으세요.</p>
+      <div class="attach-empty" id="attach-empty" role="button" tabindex="0" aria-label="첨부 PDF 추가">
+        <span class="empty-icon" data-icon="files"></span>
+        <p class="empty-title">페이지를 가져올 PDF 추가</p>
+        <p class="empty-sub">끌어다 놓거나 클릭 · 여러 개 가능</p>
+      </div>
+      <div class="attach-list" id="attach-list"></div>
+      <div class="attach-footer">
+        <span id="attach-selected">선택한 페이지 없음</span>
+        <button type="button" id="btn-extract" class="primary" aria-label="선택한 페이지를 메인 끝에 추가" disabled>메인에 추가<span data-icon="arrow-right"></span></button>
+      </div>
+    </aside>
+  </div>
+
+  <!-- 크게 보기 (썸네일 더블클릭) -->
+  <dialog class="viewer" id="viewer" aria-labelledby="viewer-title">
+    <div class="viewer-bar">
+      <span class="viewer-title" id="viewer-title"></span>
+      <span class="viewer-help"><kbd>←</kbd> <kbd>→</kbd> 이전/다음 · <kbd>Esc</kbd> 닫기</span>
+      <button type="button" id="viewer-close" class="icon-btn" aria-label="닫기" title="닫기 (Esc)"><span data-icon="x"></span></button>
+    </div>
+    <div class="viewer-body">
+      <button type="button" class="viewer-nav icon-btn" id="viewer-prev" aria-label="이전 페이지" title="이전 페이지 (←)"><span data-icon="chevron-left"></span></button>
+      <div class="viewer-stage" id="viewer-stage">
+        <canvas id="viewer-canvas"></canvas>
+      </div>
+      <button type="button" class="viewer-nav icon-btn" id="viewer-next" aria-label="다음 페이지" title="다음 페이지 (→)"><span data-icon="chevron-right"></span></button>
+    </div>
+  </dialog>
+
+  <!-- 확인 대화상자 (confirm() 대신) -->
+  <dialog class="confirm" id="confirm" aria-labelledby="confirm-title" aria-describedby="confirm-message">
+    <form method="dialog">
+      <h2 class="confirm-title" id="confirm-title"></h2>
+      <p class="confirm-message" id="confirm-message"></p>
+      <div class="confirm-actions">
+        <button type="submit" value="cancel" id="confirm-cancel">취소</button>
+        <button type="submit" value="ok" id="confirm-ok" class="primary">확인</button>
+      </div>
+    </form>
+  </dialog>
+
+  <!-- 토스트 알림 (alert() 대신) -->
+  <div class="toasts" id="toasts" aria-live="polite"></div>
+
+  <script src="lib/pdf.min.js"></script>
+  <script src="lib/pdf-lib.min.js"></script>
+  <script src="lib/Sortable.min.js"></script>
+  <script src="app.js"></script>
+</body>
+</html>
